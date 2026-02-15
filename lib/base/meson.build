@@ -1,0 +1,131 @@
+base_sources = [
+  'session.vala',
+  'session-glue.c',
+  'channel.vala',
+  'service.vala',
+  'stream.vala',
+  'rpc.vala',
+  'p2p.vala',
+  'p2p-glue.c',
+  'dbus.vala',
+  'promise.vala',
+  'fs.vala',
+  'socket.vala',
+  'socket-glue.c',
+  'buffer.vala',
+  'buffer-glue.c',
+  'value.vala',
+]
+
+extra_vala_args = []
+
+if host_os == 'windows'
+  base_sources += 'windows.vala'
+else
+  base_sources += 'posix.vala'
+  extra_vala_args += '--pkg=posix'
+endif
+
+if host_os == 'macos'
+  base_sources += [
+    'xpc.vala',
+    'miru-darwin.c',
+  ]
+endif
+
+if host_os_family == 'darwin'
+  base_sources += 'corefoundation.vala'
+  extra_vala_args += '--pkg=darwin-xnu'
+endif
+
+if host_os_family == 'linux'
+  base_sources += [
+    'linux.vala',
+  ]
+  extra_vala_args += [
+    '--pkg=linux',
+    '--pkg=miru-atomics',
+    '--pkg=libbpf',
+  ]
+
+  syscall_arch_from_abi = {
+    'armbe': 'arm',
+    'armbe8': 'arm',
+    'armhf': 'arm',
+    'armv6kz': 'arm',
+    'arm64be': 'arm64',
+    'arm64beilp32': 'arm64',
+    'mipsel': 'mips',
+    'mips64el': 'mips64',
+  }
+  syscall_arch = syscall_arch_from_abi.get(host_abi, host_abi)
+  base_sources += [
+    'linux-syscalls' / (syscall_arch + '.vala'),
+    'linux-syscalls' / (syscall_arch + '-glue.c'),
+  ]
+endif
+
+if host_os_family == 'freebsd'
+  extra_vala_args += '--pkg=freebsd'
+endif
+
+extra_deps = []
+if host_os_family != 'windows'
+  extra_deps += gio_unix_dep
+endif
+if host_os_family == 'linux'
+  extra_deps += libbpf_dep
+endif
+
+base_vala_args = [mumu_vala_args, '--pkg=gio-2.0', '--pkg=json-glib-1.0']
+if nice_dep.found()
+  base_vala_args += '--pkg=nice'
+endif
+if host_os_family != 'windows'
+  base_vala_args += [
+    '--pkg=gio-unix-2.0',
+  ]
+endif
+if host_os_family == 'darwin'
+  base_vala_args += [
+    '--pkg=corefoundation',
+    '--pkg=darwin-gcd',
+    '--pkg=darwin-xpc',
+  ]
+endif
+if host_os_family == 'linux'
+  base_vala_args += [
+    '--vapidir=' + meson.current_source_dir(),
+    '--pkg=miru-linux',
+    '--pkg=gio-unix-2.0',
+  ]
+endif
+
+base_gir_name = f'MiruBase-@api_version@.gir'
+
+base = static_library('miru-base-' + api_version, base_sources,
+  c_args: miru_component_cflags,
+  vala_args: [base_vala_args, '--pkg=libsoup-3.0'] + extra_vala_args,
+  vala_header: 'miru-base.h',
+  vala_gir: base_gir_name,
+  vala_vapi: f'miru-base-@api_version@.vapi',
+  dependencies: [glib_dep, gobject_dep, gio_dep, libsoup_dep, nice_dep, usrsctp_dep, gee_dep, json_glib_dep, mumu_dep, openssl_dep] + extra_deps,
+  install: true,
+  install_dir: [true, header_install_dir, true, false],
+)
+
+base_dep = declare_dependency(
+  include_directories: include_directories('.'),
+  link_with: base,
+  dependencies: [nice_dep, json_glib_dep, mumu_dep] + extra_deps,
+)
+
+base_build_dir = meson.current_build_dir()
+
+pkg = import('pkgconfig')
+pkg.generate(base,
+  filebase: f'miru-base-@api_version@',
+  name: 'Miru Base Library',
+  version: miru_version,
+  description: 'Basic building blocks',
+)

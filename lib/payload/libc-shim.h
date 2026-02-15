@@ -1,0 +1,8 @@
+#ifndef __MIRU_LIBC_SHIM_H__
+#define __MIRU_LIBC_SHIM_H__
+
+#ifdef HAVE_LINUX
+int dup3 (int oldfd, int newfd, int flags);
+#endif
+
+#endif

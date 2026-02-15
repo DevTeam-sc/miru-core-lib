@@ -1,0 +1,7 @@
+{
+  global:
+    _miru_compiler_backend_*;
+
+  local:
+    *;
+};

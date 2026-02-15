@@ -1,0 +1,7 @@
+{
+  global:
+    miru_agent_main;
+
+  local:
+    *;
+};
