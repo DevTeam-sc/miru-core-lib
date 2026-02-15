@@ -21,6 +21,10 @@ jobs:
         include:
           - { id: windows-x86_64, runner: '"windows-latest"', sys: MINGW64, pkg: 'mingw-w64-x86_64-gcc' }
           - { id: linux-x86_64,   runner: '"ubuntu-latest"'                                          }
+          - { id: android-arm64,  runner: '"ubuntu-latest"'                                          }
+          - { id: android-arm,    runner: '"ubuntu-latest"'                                          }
+          - { id: android-x86_64, runner: '"ubuntu-latest"'                                          }
+          - { id: android-x86,    runner: '"ubuntu-latest"'                                          }
     permissions:
       contents: write
     steps:
@@ -65,13 +69,13 @@ jobs:
           $env:DESTDIR = (Join-Path $PWD 'dist\install')
           .\make install
 
-      - name: Build + install (Linux)
-        if: ${{ startsWith(matrix.id, 'linux-') }}
+      - name: Build + install (Linux/Android)
+        if: ${{ !startsWith(matrix.id, 'windows-') }}
         shell: bash
         run: |
           set -euo pipefail
           export MIRU_VERSION="${{ steps.vars.outputs.version }}"
-          ./configure --host=${{ matrix.id }} --with-devkits=core --enable-tests
+          ./configure --host=${{ matrix.id }} --with-devkits=core --enable-tests=no
           make
           export DESTDIR="$PWD/dist/install"
           make install
