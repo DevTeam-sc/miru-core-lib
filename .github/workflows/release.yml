@@ -1,0 +1,104 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 16.5.8). Used for manual runs."
+        required: false
+        default: ""
+
+jobs:
+  native_assets:
+    name: native assets (${{ matrix.id }})
+    runs-on: ${{ fromJSON(matrix.runner) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: windows-x86_64, runner: '"windows-latest"', sys: MINGW64, pkg: 'mingw-w64-x86_64-gcc' }
+          - { id: linux-x86_64,   runner: '"ubuntu-latest"'                                          }
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Resolve version
+        id: vars
+        shell: bash
+        env:
+          MANUAL_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${MANUAL_VERSION}" ]]; then
+            echo "version=${MANUAL_VERSION}" >> "$GITHUB_OUTPUT"
+          else
+            ref="${GITHUB_REF_NAME:-v0.0.0}"
+            echo "version=${ref#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install MinGW toolchain (Windows)
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.sys }}
+          install: ${{ matrix.pkg }}
+
+      - name: Build + install (Windows)
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.msys2.outputs.msys2-location }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:MIRU_VERSION = '${{ steps.vars.outputs.version }}'
+          .\configure --host=${{ matrix.id }} --with-devkits=core --enable-tests
+          .\make
+          $env:DESTDIR = (Join-Path $PWD 'dist\install')
+          .\make install
+
+      - name: Build + install (Linux)
+        if: ${{ startsWith(matrix.id, 'linux-') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export MIRU_VERSION="${{ steps.vars.outputs.version }}"
+          ./configure --host=${{ matrix.id }} --with-devkits=core --enable-tests
+          make
+          export DESTDIR="$PWD/dist/install"
+          make install
+
+      - name: Package
+        shell: bash
+        env:
+          MIRU_ZIP_NAME: miru-native-${{ matrix.id }}-${{ steps.vars.outputs.version }}.zip
+        run: |
+          set -euo pipefail
+          mkdir -p dist/release
+          name="miru-native-${{ matrix.id }}-${{ steps.vars.outputs.version }}.zip"
+          cd dist/install
+          python - <<'PY'
+import os, zipfile
+from pathlib import Path
+root = Path(".").resolve()
+out = Path("..") / "release" / os.environ["MIRU_ZIP_NAME"]
+out.parent.mkdir(parents=True, exist_ok=True)
+with zipfile.ZipFile(out, "w", compression=zipfile.ZIP_DEFLATED) as z:
+    for p in root.rglob("*"):
+        if p.is_file():
+            z.write(p, p.relative_to(root).as_posix())
+print(out)
+PY
+
+      - name: Upload GitHub Release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/release/miru-native-${{ matrix.id }}-${{ steps.vars.outputs.version }}.zip

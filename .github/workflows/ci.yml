@@ -20,10 +20,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - { id: windows-arm64,  runner: '"windows-11-arm"', sys: CLANGARM64, pkg: 'mingw-w64-clang-aarch64-clang' }
           - { id: windows-x86_64, runner: '"windows-latest"', sys: MINGW64,    pkg: 'mingw-w64-x86_64-gcc'          }
           - { id: windows-x86,    runner: '"windows-latest"', sys: MINGW32,    pkg: 'mingw-w64-i686-gcc'            }
-          - { id: macos-x86_64,   runner: '"macos-latest"'                                                          }
+          - { id: macos-x86_64,   runner: '"macos-13"'                                                              }
           - { id: macos-arm64,    runner: '"macos-latest"'                                                          }
           - { id: linux-x86_64,   runner: '"ubuntu-latest"'                                                         }
           - { id: linux-x86,      runner: '"ubuntu-latest"'                                                         }
